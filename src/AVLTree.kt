@@ -1,11 +1,11 @@
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.NoSuchElementException
+import kotlin.collections.AbstractSet
 import kotlin.math.max
-import java.util.Stack
 
 
-class AVLTree<T : Comparable<T>> : NavigableSet<T> {
+open class AVLTree<T : Comparable<T>> : AbstractSet<T>(), NavigableSet<T> {
 
     private var root: Node<T>? = null
 
@@ -193,6 +193,9 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
     private fun Node<T>?.swapElement(node: Node<T>, newNode: Node<T>?) {
         newNode?.parent = this
 
+        node.left?.parent = newNode
+        node.right?.parent = newNode
+
         when {
             this == null -> root = newNode
             this.left?.value?.compareTo(node.value) == 0 -> this.left = newNode
@@ -217,39 +220,34 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
         }
     }
 
-    inner class BinaryTreeIterator internal constructor() : MutableIterator<T> {
+    open inner class BinaryTreeIterator internal constructor() : MutableIterator<T> {
 
+        private val iter: Queue<Node<T>> = LinkedList()
         private var current: Node<T>? = null
-        private var stack: Stack<Node<T>> = Stack()
 
         init {
-            var node = root
-            while (node != null) {
-                stack.push(node)
-                node = node.left
+            fun generateIterator(state: Node<T>) {
+                if (state.left != null) generateIterator(state.left!!)
+                iter.offer(state)
+                if (state.right != null) generateIterator(state.right!!)
+            }
+
+            if (root != null) {
+                generateIterator(root!!)
+                current = iter.peek()
             }
         }
 
-        override fun hasNext(): Boolean = stack.isNotEmpty()
+        override fun hasNext(): Boolean = iter.isNotEmpty()
 
         override fun next(): T {
-            if (!hasNext()) throw NoSuchElementException()
-
-            var node = stack.pop()
-            current = node
-            if (node.right != null) {
-                node = node.right
-
-                while (node != null) {
-                    stack.push(node)
-                    node = node.left
-                }
-            }
+            current = iter.poll()
+            if (current == null) throw NoSuchElementException()
             return current!!.value
         }
 
         override fun remove() {
-            remove(current?.value ?: return)
+            remove(current?.value)
         }
     }
 
@@ -277,7 +275,7 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
         var node = root ?: return null
         var ans = node.value
          do {
-             node = if (node.value > element) node.left ?: break else node.right ?: break
+             node = if (node.value >= element) node.left ?: break else node.right ?: break
 
              if (root?.value == ans && node.value < element) ans = node.value
              if (node.value > ans && node.value < element) ans = node.value
@@ -301,6 +299,7 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
     override fun isEmpty(): Boolean = root == null
 
     fun info(): String {
+        if (root == null) return "Empty tree"
         val queue = ArrayDeque<Node<T>?>()
         val ans = StringBuilder()
         queue.addFirst(root)
@@ -310,48 +309,51 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
             if (element?.left != null) queue.addLast(element.left)
             if (element?.right != null) queue.addLast(element.right)
         }
-        //ans.append("${root?.value} ${root?.left?.value} ${root?.right?.value}")
         return ans.toString()
     }
 
     override fun addAll(elements: Collection<T>): Boolean {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        var ans = true
+        for (element in elements) {
+            if (ans) ans = add(element) else add(element)
+        }
+        return ans
     }
 
     override fun clear() {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        root = null
+        size = 0
     }
 
-    override fun tailSet(fromElement: T, inclusive: Boolean): NavigableSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun tailSet(fromElement: T, inclusive: Boolean): NavigableSet<T> =
+        SubTree(fromElement, inclusive, null, false, this)
 
-    override fun tailSet(fromElement: T): SortedSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+
+    override fun tailSet(fromElement: T): SortedSet<T> =
+        SubTree(fromElement, true, null, false, this)
 
     override fun removeAll(elements: Collection<T>): Boolean {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        var ans = true
+        for (element in elements) {
+            if (ans) ans = remove(element) else remove(element)
+        }
+        return ans
     }
 
-    override fun headSet(toElement: T, inclusive: Boolean): NavigableSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun headSet(toElement: T, inclusive: Boolean): NavigableSet<T> =
+        SubTree(null, false, toElement, inclusive, this)
 
-    override fun headSet(toElement: T): SortedSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun headSet(toElement: T): SortedSet<T> =
+        SubTree(null, false, toElement, false, this)
 
-    override fun subSet(fromElement: T, fromInclusive: Boolean, toElement: T, toInclusive: Boolean): NavigableSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun subSet(fromElement: T, fromInclusive: Boolean, toElement: T, toInclusive: Boolean): NavigableSet<T> =
+        SubTree(fromElement, fromInclusive, toElement, toInclusive, this)
 
-    override fun subSet(fromElement: T, toElement: T): SortedSet<T> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
+    override fun subSet(fromElement: T, toElement: T): SortedSet<T> =
+        SubTree(fromElement, true, toElement, false, this)
 
     override fun containsAll(elements: Collection<T>): Boolean {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return elements.all { contains(it) }
     }
 
     override fun descendingSet(): NavigableSet<T> {
@@ -366,19 +368,309 @@ class AVLTree<T : Comparable<T>> : NavigableSet<T> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun floor(e: T): T? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun floor(element: T): T? {
+        var node = root ?: return null
+        var ans = node.value
+        do {
+            node = if (node.value >= element) node.left ?: break else node.right ?: break
+
+            if (node.value == element) return element
+
+            if (root?.value == ans && node.value < element) ans = node.value
+            if (node.value > ans && node.value < element) ans = node.value
+        } while (!node.isLeaf())
+        return if (ans < element) ans else null
     }
 
-    override fun ceiling(e: T): T? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun ceiling(element: T): T? {
+        var node = root ?: return null
+        var ans = node.value
+        do {
+            node = if (node.value > element) node.left ?: break else node.right ?: break
+
+            if (node.value == element) return element
+
+            if (root?.value == ans && node.value > element) ans = node.value
+            if (node.value < ans && node.value > element) ans = node.value
+        } while (!node.isLeaf())
+
+        return if (ans > element) ans else null
     }
 
     override fun pollFirst(): T? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        if (this.size == 0) return null
+        val element = this.first()
+        remove(element)
+        return element
     }
 
     override fun pollLast(): T? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        if (this.size == 0) return null
+        val element = this.last()
+        remove(element)
+        return element
+    }
+
+    private inner class SubTree(lowBound: T?, lowInclusive: Boolean,
+                                upBound: T?, upInclusive: Boolean, parentTree: AVLTree<T>): AVLTree<T>() {
+        private val lowerBound = lowBound
+        private val lowerInclusive = lowInclusive
+        private val upperBound = upBound
+        private val upperInclusive = upInclusive
+        private var subTreeSize = 0
+        private val parent = parentTree
+
+        private fun T.valid() =
+            (lowerBound == null || (this > lowerBound || (lowerInclusive && this == lowerBound)))
+                    && (upperBound == null || (this < upperBound || (upperInclusive && this == upperBound)))
+
+        override operator fun contains(element: T): Boolean =
+            element.valid() && parent.contains(element)
+
+        override fun add(element: T): Boolean {
+            require(element.valid())
+            return parent.add(element)
+        }
+
+        override fun remove(element: T): Boolean {
+            require(element.valid())
+            return parent.remove(element)
+        }
+
+        override var size: Int
+            get() = this.count()
+            set(value) {
+                subTreeSize = value
+            }
+
+        private inner class SubTreeIterator internal constructor() : BinaryTreeIterator() {
+            private val iter: Queue<Node<T>> = LinkedList()
+            private var current: Node<T>? = null
+
+            private fun T.valid() =
+                ((lowerBound == null || this >= lowerBound) && (upperBound == null || this < upperBound))
+
+            init {
+                fun generateIterator(state: Node<T>) {
+                    if (state.left != null && state.left!!.value.valid())
+                        generateIterator(state.left!!)
+
+                    if (state.value.valid()) iter.offer(state)
+
+                    if (state.right != null && state.right!!.value.valid())
+                        generateIterator(state.right!!)
+                }
+
+                if (root != null) {
+                    generateIterator(root!!)
+                    current = iter.peek()
+                }
+            }
+
+            override fun hasNext() = iter.isNotEmpty()
+
+            override fun next(): T {
+                current = iter.poll()
+                if (current == null) throw NoSuchElementException()
+                return current!!.value
+            }
+
+            override fun remove() {
+                parent.remove(current?.value)
+            }
+        }
+
+        override fun iterator(): MutableIterator<T> = SubTreeIterator()
+
+        override fun isEmpty(): Boolean = size == 0
+
+        override fun addAll(elements: Collection<T>): Boolean {
+            var ans = true
+            for (element in elements) {
+                if (!element.valid()) {
+                    ans = false
+                    continue
+                }
+                if (ans) ans = add(element) else add(element)
+            }
+            return ans
+        }
+
+        override fun tailSet(fromElement: T, inclusive: Boolean): NavigableSet<T> {
+            return when {
+                lowerBound == null || lowerBound < fromElement ->
+                    if (upperBound == null) parent.tailSet(fromElement, inclusive)
+                    else parent.subSet(fromElement, inclusive, upperBound, upperInclusive)
+                lowerBound == fromElement ->
+                    if (upperBound == null) parent.tailSet(fromElement, lowerInclusive && inclusive)
+                    else parent.subSet(fromElement, inclusive && lowerInclusive, upperBound, upperInclusive)
+                else ->
+                    if (upperBound == null) parent.tailSet(lowerBound, lowerInclusive)
+                    else parent.subSet(lowerBound, lowerInclusive, upperBound, upperInclusive)
+            }
+        }
+
+        override fun tailSet(fromElement: T): SortedSet<T> =
+            this.tailSet(fromElement, true)
+
+        override fun removeAll(elements: Collection<T>): Boolean {
+            var ans = true
+            for (element in elements) {
+                if (!element.valid()) {
+                    ans = false
+                    continue
+                }
+                if (ans) ans = remove(element) else remove(element)
+            }
+            return ans
+        }
+
+        override fun headSet(toElement: T, inclusive: Boolean): NavigableSet<T> {
+            return when {
+                upperBound == null || upperBound > toElement ->
+                    if (lowerBound == null) parent.headSet(toElement, inclusive)
+                    else parent.subSet(lowerBound, lowerInclusive, toElement, inclusive)
+                upperBound == toElement ->
+                    if (lowerBound == null) parent.headSet(toElement, inclusive && upperInclusive)
+                    else parent.subSet(lowerBound, lowerInclusive, toElement, inclusive && upperInclusive)
+                else ->
+                    if (lowerBound == null) parent.headSet(upperBound, upperInclusive)
+                    else parent.subSet(lowerBound, lowerInclusive, upperBound, upperInclusive)
+            }
+        }
+
+        override fun headSet(toElement: T): SortedSet<T> = headSet(toElement, false)
+
+        override fun subSet(fromElement: T, fromInclusive: Boolean, toElement: T, toInclusive: Boolean): NavigableSet<T> {
+            val start = when {
+                lowerBound == null || lowerBound <= fromElement -> fromElement
+                else -> lowerBound
+            }
+            val startInclusive = when {
+                lowerBound == null || lowerBound < fromElement -> fromInclusive
+                lowerBound == fromElement -> fromInclusive && lowerInclusive
+                else -> lowerInclusive
+            }
+            val end = when {
+                upperBound == null || upperBound >= toElement -> toElement
+                else -> upperBound
+            }
+            val endInclusive = when {
+                upperBound == null || upperBound > fromElement -> fromInclusive
+                upperBound == fromInclusive -> upperInclusive && fromInclusive
+                else -> upperInclusive
+            }
+            return parent.subSet(start, startInclusive, end, endInclusive)
+        }
+
+        override fun subSet(fromElement: T, toElement: T): SortedSet<T> =
+            subSet(fromElement, true, toElement, false)
+
+        override fun containsAll(elements: Collection<T>): Boolean {
+            return elements.all { contains(it) }
+        }
+
+        override fun first(): T {
+            var current: Node<T>? = root ?: throw NoSuchElementException()
+            var ans: Node<T>? = null
+            while (current != null) {
+                if (current.value.valid()) {
+                    ans = current
+                    current = current.left
+                }
+                else current = current.right
+            }
+            if (ans != null) return ans.value
+            else throw NoSuchElementException()
+        }
+
+        override fun last(): T {
+            var current: Node<T>? = root ?: throw NoSuchElementException()
+            var ans: Node<T>? = null
+            while (current != null) {
+                if (current.value.valid()) {
+                    ans = current
+                    current = current.right
+                }
+                else current = current.left
+            }
+            if (ans != null) return ans.value
+            else throw NoSuchElementException()
+        }
+
+        override fun lower(element: T): T? {
+            if (lowerBound != null && element <= lowerBound) return null
+            if (upperBound != null && element >= upperBound) return this.last()
+            var node = root ?: return null
+            var ans = node.value
+            do {
+                node = if (node.value >= element) node.left ?: break else node.right ?: break
+
+                if (root?.value == ans && node.value < element && node.value.valid()) ans = node.value
+                if (node.value > ans && node.value < element && node.value.valid()) ans = node.value
+            } while (!node.isLeaf())
+            return if (ans.valid() &&(ans < element || ans == root!!.value)) ans else null
+        }
+
+        override fun higher(element: T): T? {
+            if (lowerBound != null && element <= lowerBound) return this.first()
+            if (upperBound != null && element >= upperBound) return null
+            var node = root ?: return null
+            var ans = node.value
+            do {
+                node = if (node.value > element) node.left ?: break else node.right ?: break
+
+                if (root?.value == ans && node.value > element && node.value.valid()) ans = node.value
+                if (node.value < ans && node.value > element && node.value.valid()) ans = node.value
+            } while (!node.isLeaf())
+            return if (ans.valid() && (ans > element || ans == root!!.value)) ans else null
+        }
+
+        override fun floor(element: T): T? {
+            if (lowerBound != null && (element < lowerBound || (element == lowerBound && !lowerInclusive))) return null
+            if (upperBound != null && (element > upperBound || (element == upperBound && !upperInclusive))) return this.last()
+            var node = root ?: return null
+            var ans = node.value
+            do {
+                node = if (node.value >= element) node.left ?: break else node.right ?: break
+
+                if (node.value == element && element.valid()) return element
+
+                if (root?.value == ans && node.value < element && node.value.valid()) ans = node.value
+                if (node.value > ans && node.value < element && node.value.valid()) ans = node.value
+            } while (!node.isLeaf())
+            return if (ans.valid() && (ans < element || ans == root!!.value)) ans else null
+        }
+
+        override fun ceiling(element: T): T? {
+            if (lowerBound != null && (element < lowerBound || (element == lowerBound && !lowerInclusive))) return this.first()
+            if (upperBound != null && (element > upperBound || (element == upperBound && !upperInclusive))) return null
+            var node = root ?: return null
+            var ans = node.value
+            do {
+                node = if (node.value > element) node.left ?: break else node.right ?: break
+
+                if (node.value == element && element.valid()) return element
+
+                if (root?.value == ans && node.value > element && node.value.valid()) ans = node.value
+                if (node.value < ans && node.value > element && node.value.valid()) ans = node.value
+            } while (!node.isLeaf())
+            return if (ans.valid() && (ans > element || ans == root!!.value)) ans else null
+        }
+
+        override fun pollFirst(): T? {
+            if (this.size == 0) return null
+            val element = this.first()
+            remove(element)
+            return element
+        }
+
+        override fun pollLast(): T? {
+            if (this.size == 0) return null
+            val element = this.last()
+            remove(element)
+            return element
+        }
+
     }
 }

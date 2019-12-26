@@ -28,13 +28,27 @@ class AVLTreeTest{
                 "value = 12, height = 1, parent = 10, left = null, right = null\n", tree.info())
         tree.remove(7)
         assertEquals("value = 5, height = 3, parent = null, left = 4, right = 10\n" +
-                "value = 4, height = 1, parent = 7, left = null, right = null\n" +
-                "value = 10, height = 2, parent = 7, left = 8, right = 12\n" +
+                "value = 4, height = 1, parent = 5, left = null, right = null\n" +
+                "value = 10, height = 2, parent = 5, left = 8, right = 12\n" +
                 "value = 8, height = 1, parent = 10, left = null, right = null\n" +
                 "value = 12, height = 1, parent = 10, left = null, right = null\n", tree.info())
+
+        val proba = tree.headSet(11)
+
+        assertEquals(10, proba.last())
+        assertEquals(4, proba.first())
+        proba.remove(4)
+        assertEquals(5, proba.first())
+        assertEquals(5, tree.first())
         assertEquals(12, tree.lower(13))
         assertEquals(5, tree.higher(4))
         assertEquals(null, tree.lower(2))
         assertEquals(8, tree.higher(7))
+        tree.add(4)
+        assertEquals(4, tree.floor(4))
+        assertEquals(12, tree.ceiling(12))
+        tree.clear()
+        assertEquals("Empty tree", tree.info())
+
     }
 }
